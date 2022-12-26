@@ -311,9 +311,9 @@ class WindowsExecutableHandler(models.NonAssemblableDatafileHandler):
 
         License = get_first(infos, 'License')
 
-        extracted_license_statement = {}
+        declared_license = {}
         if LegalCopyright or LegalTrademarks or License:
-            extracted_license_statement = dict(
+            declared_license = dict(
                 LegalCopyright=copyr,
                 LegalTrademarks=LegalTrademarks,
                 License=License
@@ -328,15 +328,24 @@ class WindowsExecutableHandler(models.NonAssemblableDatafileHandler):
             parties = [Party(type=party_org, role='author', name=cname)]
         homepage_url = get_first(infos, 'URL', 'WWW')
 
-        yield models.PackageData(
+        package_data = models.PackageData(
             datasource_id=cls.datasource_id,
             type=cls.default_package_type,
             name=name,
             version=version,
             release_date=release_date,
             copyright=copyr,
-            extracted_license_statement=extracted_license_statement,
+            declared_license=declared_license,
             description=description,
             parties=parties,
             homepage_url=homepage_url,
         )
+
+        if not package_data.license_expression and package_data.declared_license:
+            if License:
+                lexp = models.compute_normalized_license(License)
+            else:
+                lexp = models.compute_normalized_license(package_data.declared_license)
+            package_data.license_expression = lexp
+
+        yield package_data

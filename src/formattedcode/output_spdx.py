@@ -23,15 +23,12 @@ from spdx.utils import NoAssert
 from spdx.utils import SPDXNone
 from spdx.version import Version
 
-from license_expression import Licensing
 from commoncode.cliutils import OUTPUT_GROUP
 from commoncode.cliutils import PluggableCommandLineOption
 from commoncode.fileutils import file_name
 from commoncode.fileutils import parent_directory
 from commoncode.text import python_safe_name
 from formattedcode import FileOptionType
-from licensedcode.detection import get_matches_from_detection_mappings
-from licensedcode.licenses_reference import get_matched_text_from_reference_data
 from plugincode.output import output_impl
 from plugincode.output import OutputPlugin
 import scancode_config
@@ -172,7 +169,6 @@ def _process_codebase(
     package_name = build_package_name(input_path)
 
     write_spdx(
-        codebase=codebase,
         output_file=output_file,
         files=files,
         tool_name=tool_name,
@@ -211,7 +207,6 @@ def check_sha1(codebase):
 
 
 def write_spdx(
-    codebase,
     output_file,
     files,
     tool_name,
@@ -233,10 +228,6 @@ def write_spdx(
     producing this SPDX document.
     Use ``package_name`` as a Package name and as a namespace prefix base.
     """
-    from licensedcode import cache
-    licenses = cache.get_licenses_db()
-    licensing = Licensing()
-
     as_rdf = not as_tagvalue
     _patch_license_list()
 
@@ -285,54 +276,42 @@ def write_spdx(
             chk_sum=Algorithm('SHA1', file_data.get('sha1') or '')
         )
 
-        file_license_detections = file_data.get('license_detections')
-        license_matches = get_matches_from_detection_mappings(file_license_detections)
-        if license_matches:
+        file_licenses = file_data.get('licenses')
+        if file_licenses:
             all_files_have_no_license = False
-            for match in license_matches:
-                file_license_expression = match["license_expression"]
-                file_license_keys = licensing.license_keys(
-                    expression=file_license_expression,
-                    unique=True
-                )
-                matched_text = get_matched_text_from_reference_data(
-                    codebase=codebase,
-                    rule_identifier=match["rule_identifier"],
-                )
-                for license_key in file_license_keys:
-                    file_license = licenses.get(license_key)
-                    license_key = file_license.key
+            for file_license in file_licenses:
+                license_key = file_license.get('key')
 
-                    spdx_id = file_license.spdx_license_key
-                    if not spdx_id:
-                        spdx_id = f'LicenseRef-scancode-{license_key}'
-                    is_license_ref = spdx_id.lower().startswith('licenseref-')
+                spdx_id = file_license.get('spdx_license_key')
+                if not spdx_id:
+                    spdx_id = f'LicenseRef-scancode-{license_key}'
+                is_license_ref = spdx_id.lower().startswith('licenseref-')
 
-                    if not is_license_ref:
-                        spdx_license = License.from_identifier(spdx_id)
-                    else:
-                        spdx_license = ExtractedLicense(spdx_id)
-                        spdx_license.name = file_license.short_name
-                        # FIXME: replace this with the licensedb URL
-                        comment = (
-                            f'See details at https://github.com/nexB/scancode-toolkit'
-                            f'/blob/develop/src/licensedcode/data/licenses/{license_key}.yml\n'
-                        )
-                        spdx_license.comment = comment
-                        text = match.get('matched_text')
-                        # always set some text, even if we did not extract the
-                        # matched text
-                        if not text:
-                            text = comment
-                        spdx_license.text = text
-                        doc.add_extr_lic(spdx_license)
+                if not is_license_ref:
+                    spdx_license = License.from_identifier(spdx_id)
+                else:
+                    spdx_license = ExtractedLicense(spdx_id)
+                    spdx_license.name = file_license.get('short_name')
+                    # FIXME: replace this with the licensedb URL
+                    comment = (
+                        f'See details at https://github.com/nexB/scancode-toolkit'
+                        f'/blob/develop/src/licensedcode/data/licenses/{license_key}.yml\n'
+                    )
+                    spdx_license.comment = comment
+                    text = file_license.get('matched_text')
+                    # always set some text, even if we did not extract the
+                    # matched text
+                    if not text:
+                        text = comment
+                    spdx_license.text = text
+                    doc.add_extr_lic(spdx_license)
 
-                    # Add licenses in the order they appear in the file. Maintaining
-                    # the order might be useful for provenance purposes.
-                    file_entry.add_lics(spdx_license)
-                    package.add_lics_from_file(spdx_license)
+                # Add licenses in the order they appear in the file. Maintaining
+                # the order might be useful for provenance purposes.
+                file_entry.add_lics(spdx_license)
+                package.add_lics_from_file(spdx_license)
 
-        elif license_matches is None:
+        elif file_licenses is None:
             all_files_have_no_license = False
             file_entry.add_lics(NoAssert())
 

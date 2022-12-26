@@ -76,7 +76,8 @@ class AboutFileHandler(models.DatafileHandler):
         download_url = package_data.get('download_url')
         copyright_statement = package_data.get('copyright')
 
-        declared_license_expression = package_data.get('license_expression')
+        license_expression = package_data.get('license_expression')
+        declared_license = license_expression
 
         owner = package_data.get('owner')
         if not isinstance(owner, str):
@@ -96,7 +97,8 @@ class AboutFileHandler(models.DatafileHandler):
             namespace=package_ns,
             name=name,
             version=version,
-            extracted_license_statement=declared_license_expression,
+            declared_license=declared_license,
+            license_expression=license_expression,
             copyright=copyright_statement,
             parties=parties,
             homepage_url=homepage_url,
@@ -117,7 +119,8 @@ class AboutFileHandler(models.DatafileHandler):
                 datafile_path=datafile_path,
             )
 
-            package.populate_license_fields()
+            if not package.license_expression:
+                package.license_expression = cls.compute_normalized_license(package)
 
             yield package
 

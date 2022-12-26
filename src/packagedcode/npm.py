@@ -8,8 +8,6 @@
 #
 import base64
 import io
-import os
-import logging
 import json
 import re
 import urllib.parse
@@ -19,6 +17,7 @@ from itertools import islice
 from packageurl import PackageURL
 
 from packagedcode import models
+from packagedcode.utils import combine_expressions
 from packagedcode.utils import normalize_vcs_url
 from packagedcode.utils import yield_dependencies_from_package_data
 from packagedcode.utils import yield_dependencies_from_package_resource
@@ -32,27 +31,6 @@ per https://docs.npmjs.com/files/package.json
 """
 To check https://github.com/npm/normalize-package-data
 """
-
-
-SCANCODE_DEBUG_PACKAGE = os.environ.get('SCANCODE_DEBUG_PACKAGE', False)
-
-TRACE = SCANCODE_DEBUG_PACKAGE
-
-def logger_debug(*args):
-    pass
-
-
-logger = logging.getLogger(__name__)
-
-if TRACE:
-    import sys
-    logging.basicConfig(stream=sys.stdout)
-    logger.setLevel(logging.DEBUG)
-
-    def logger_debug(*args):
-        return logger.debug(
-            ' '.join(isinstance(a, str) and a or repr(a) for a in args)
-        )
 
 # TODO: add os and engines from package.json??
 # TODO: add new yarn v2 lock file format
@@ -108,7 +86,8 @@ class BaseNpmHandler(models.DatafileHandler):
                 )
                 package_uid = package.package_uid
 
-                package.populate_license_fields()
+                if not package.license_expression:
+                    package.license_expression = compute_normalized_license(package.declared_license)
 
                 # Always yield the package resource in all cases and first!
                 yield package
@@ -167,7 +146,7 @@ class BaseNpmHandler(models.DatafileHandler):
                     yield subchild
 
 
-def get_urls(namespace, name, version, **kwargs):
+def get_urls(namespace, name, version):
     return dict(
         repository_homepage_url=npm_homepage_url(namespace, name, registry='https://www.npmjs.com/package'),
         repository_download_url=npm_download_url(namespace, name, version, registry='https://registry.npmjs.org'),
@@ -184,10 +163,13 @@ class NpmPackageJsonHandler(BaseNpmHandler):
     documentation_url = 'https://docs.npmjs.com/cli/v8/configuring-npm/package-json'
 
     @classmethod
-    def _parse(cls, json_data):
-        name = json_data.get('name')
-        version = json_data.get('version')
-        homepage_url = json_data.get('homepage', '')
+    def parse(cls, location):
+        with io.open(location, encoding='utf-8') as loc:
+            package_data = json.load(loc)
+
+        name = package_data.get('name')
+        version = package_data.get('version')
+        homepage_url = package_data.get('homepage', '')
 
         # a package.json without name and version can be a private package
 
@@ -206,11 +188,11 @@ class NpmPackageJsonHandler(BaseNpmHandler):
             namespace=namespace or None,
             name=name,
             version=version or None,
-            description=json_data.get('description', '').strip() or None,
+            description=package_data.get('description', '').strip() or None,
             homepage_url=homepage_url,
             **urls,
         )
-        vcs_revision = json_data.get('gitHead') or None
+        vcs_revision = package_data.get('gitHead') or None
 
         # mapping of top level package.json items to a function accepting as
         # arguments the package.json element value and returning an iterable of (key,
@@ -232,7 +214,7 @@ class NpmPackageJsonHandler(BaseNpmHandler):
         ]
 
         for source, func in field_mappers:
-            value = json_data.get(source) or None
+            value = package_data.get(source) or None
             if value:
                 if isinstance(value, str):
                     value = value.strip()
@@ -244,23 +226,19 @@ class NpmPackageJsonHandler(BaseNpmHandler):
             package.download_url = npm_download_url(package.namespace, package.name, package.version)
 
         # licenses are a tad special with many different data structures
-        lic = json_data.get('license')
-        lics = json_data.get('licenses')
+        lic = package_data.get('license')
+        lics = package_data.get('licenses')
         package = licenses_mapper(lic, lics, package)
 
-        package.populate_license_fields()
+        if not package.license_expression and package.declared_license:
+            package.license_expression = compute_normalized_license(package.declared_license)
 
-        if TRACE:
-            logger_debug(f'NpmPackageJsonHandler: parse: package: {package.to_dict()}')
-
-        return package
+        yield package
 
     @classmethod
-    def parse(cls, location):
-        with io.open(location, encoding='utf-8') as loc:
-            json_data = json.load(loc)
+    def compute_normalized_license(cls, package):
+        return compute_normalized_license(package.declared_license)
 
-        yield cls._parse(json_data)
 
 class BaseNpmLockHandler(BaseNpmHandler):
 
@@ -348,7 +326,7 @@ class BaseNpmLockHandler(BaseNpmHandler):
             )
 
             # only seen in v2 for the top level package... but good to keep
-            extracted_license_statement = dep_data.get('license')
+            declared_license = dep_data.get('license')
 
             # URLs and checksums
             misc = get_urls(ns, name, version)
@@ -364,7 +342,7 @@ class BaseNpmLockHandler(BaseNpmHandler):
                 namespace=ns,
                 name=name,
                 version=version,
-                extracted_license_statement=extracted_license_statement,
+                declared_license=declared_license,
                 **misc,
             )
             # these are paths t the root of the installed package in v2
@@ -731,6 +709,54 @@ def get_algo_hexsum(checksum):
     return {algo: checksum}
 
 
+def compute_normalized_license(declared_license):
+    """
+    Return a normalized license expression string detected from a list of
+    declared license items.
+    """
+    if not declared_license:
+        return
+
+    detected_licenses = []
+
+    for declared in declared_license:
+        if isinstance(declared, str):
+            detected_license = models.compute_normalized_license(declared)
+            if detected_license:
+                detected_licenses.append(detected_license)
+
+        elif isinstance(declared, dict):
+            # 1. try detection on the value of type if not empty and keep this
+            ltype = declared.get('type')
+            via_type = models.compute_normalized_license(ltype)
+
+            # 2. try detection on the value of url  if not empty and keep this
+            url = declared.get('url')
+            via_url = models.compute_normalized_license(url)
+
+            if via_type:
+                # The type should have precedence and any unknowns
+                # in url should be ignored.
+                # TODO: find a better way to detect unknown licenses
+                if via_url in ('unknown', 'unknown-license-reference',):
+                    via_url = None
+
+            if via_type:
+                if via_type == via_url:
+                    detected_licenses.append(via_type)
+                else:
+                    if not via_url:
+                        detected_licenses.append(via_type)
+                    else:
+                        combined_expression = combine_expressions([via_type, via_url])
+                        detected_licenses.append(combined_expression)
+            elif via_url:
+                detected_licenses.append(via_url)
+
+    if detected_licenses:
+        return combine_expressions(detected_licenses)
+
+
 def npm_homepage_url(namespace, name, registry='https://www.npmjs.com/package'):
     """
     Return an npm package registry homepage URL given a namespace, name,
@@ -939,8 +965,7 @@ def licenses_mapper(license, licenses, package):  # NOQA
     """
     declared_license = get_declared_licenses(license) or []
     declared_license.extend(get_declared_licenses(licenses)  or [])
-    if declared_license:
-        package.extracted_license_statement = declared_license
+    package.declared_license = declared_license
     return package
 
 

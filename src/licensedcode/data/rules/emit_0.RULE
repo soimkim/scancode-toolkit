@@ -1,12 +1,3 @@
----
-license_expression: emit
-is_license_notice: yes
-ignorable_copyrights:
-    - Copyright (c) Wix.com
-ignorable_holders:
-    - Wix.com
----
-
 The Enhanced MIT License (EMIT)
 Copyright (c)  Wix.com
 

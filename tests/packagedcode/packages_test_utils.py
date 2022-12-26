@@ -33,7 +33,7 @@ class PackageTester(testcase.FileBasedTesting):
         """
         expected_loc = self.get_test_loc(expected_loc, must_exist=False)
 
-        populate_license_fields(package_data)
+        compute_and_set_license_expression(package_data)
         results = package_data.to_dict()
 
         check_result_equals_expected_json(
@@ -66,7 +66,7 @@ class PackageTester(testcase.FileBasedTesting):
                         for package_uid in resource.for_packages
                     ]
                     resource.for_packages = normalized_package_uids
-            populate_license_fields(package_data)
+            compute_and_set_license_expression(package_data)
             results.append(package_data.to_dict())
 
         check_result_equals_expected_json(
@@ -76,11 +76,14 @@ class PackageTester(testcase.FileBasedTesting):
         )
 
 
-def populate_license_fields(package_data):
-    if package_data.extracted_license_statement and not package_data.declared_license_expression:
+def compute_and_set_license_expression(package_data):
+    if package_data.declared_license and not package_data.license_expression:
         from packagedcode import HANDLER_BY_DATASOURCE_ID
         handler = HANDLER_BY_DATASOURCE_ID[package_data.datasource_id]
-        handler.populate_license_fields(package_data)
+        computed = handler.compute_normalized_license(package_data)
+        if computed:
+            package_data.license_expression = computed
+    return package_data
 
 
 def check_result_equals_expected_json(result, expected_loc, regen=REGEN_TEST_FIXTURES):

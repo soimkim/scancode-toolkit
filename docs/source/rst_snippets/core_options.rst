@@ -11,6 +11,9 @@ All "Core" Scan Options
 --timeout FLOAT          Stop scanning a file if scanning takes longer
                          than a timeout in seconds.  [Default: 120]
 
+--reindex-licenses       Force a check and possible reindexing of the
+                         cached license index.
+
 --from-json              Load codebase from an existing JSON scan
 
 --max-in-memory INTEGER  Maximum number of files and directories scan
@@ -25,3 +28,5 @@ All "Core" Scan Options
                          including and below the starting point. INTEGER
                          must be positive or zero for no limit.
                          [Default: 0]
+
+.. include::  /rst_snippets/note_snippets/core_indep.rst

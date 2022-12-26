@@ -19,6 +19,7 @@ from packageurl import PackageURL
 from packagedcode import models
 from packagedcode import spec
 from packagedcode.gemfile_lock import GemfileLockParser
+from packagedcode.utils import combine_expressions
 from packagedcode.utils import build_description
 from packagedcode.utils import get_ancestor
 
@@ -28,7 +29,14 @@ from packagedcode.utils import get_ancestor
 # see https://github.com/brotandgames/ciao and logstash (jRuby) are good examples
 
 
-class GemArchiveHandler(models.DatafileHandler):
+class BaseGemHandler(models.DatafileHandler):
+
+    @classmethod
+    def compute_normalized_license(cls, package):
+        return compute_normalized_license(package.declared_license)
+
+
+class GemArchiveHandler(BaseGemHandler):
     path_patterns = ('*.gem',)
     filetypes = ('posix tar archive',)
     datasource_id = 'gem_archive'
@@ -72,7 +80,7 @@ def assemble_extracted_gem(cls, package_data, resource, codebase, package_adder)
     )
 
 
-class GemMetadataArchiveExtractedHandler(models.DatafileHandler):
+class GemMetadataArchiveExtractedHandler(BaseGemHandler):
     datasource_id = 'gem_archive_extracted'
     path_patterns = ('*/metadata.gz-extract',)
     default_package_type = 'gem'
@@ -98,7 +106,7 @@ class GemMetadataArchiveExtractedHandler(models.DatafileHandler):
         yield from assemble_extracted_gem(cls, package_data, resource, codebase)
 
 
-class BaseGemProjectHandler(models.DatafileHandler):
+class BaseGemProjectHandler(BaseGemHandler):
 
     @classmethod
     def assemble(cls, package_data, resource, codebase, package_adder):
@@ -120,7 +128,7 @@ class BaseGemProjectHandler(models.DatafileHandler):
         return models.DatafileHandler.assign_package_to_parent_tree(package, resource, codebase, package_adder)
 
 
-class GemspecHandler(models.DatafileHandler):
+class GemspecHandler(BaseGemHandler):
     datasource_id = 'gemspec'
     path_patterns = ('*.gemspec',)
     default_package_type = 'gem'
@@ -145,27 +153,35 @@ class GemspecHandler(models.DatafileHandler):
         )
         vcs_url = gemspec.get('source')
 
-        extracted_license_statement = gemspec.get('license')
+        declared_license = gemspec.get('license')
+        if declared_license:
+            # FIXME: why splitting here? this is a job for the license detection
+            declared_license = declared_license.split(',')
 
         parties = get_parties(gemspec)
         dependencies = gemspec.get('dependencies') or []
 
         urls = get_urls(name=name, version=version)
 
-        yield models.PackageData(
+        package_data = models.PackageData(
             datasource_id=cls.datasource_id,
             type=cls.default_package_type,
             name=name,
             version=version,
             parties=parties,
             homepage_url=homepage_url,
-            vcs_url=vcs_url,
             description=description,
-            extracted_license_statement=extracted_license_statement,
+            declared_license=declared_license,
             primary_language=cls.default_primary_language,
             dependencies=dependencies,
             **urls
         )
+
+        if not package_data.license_expression and package_data.declared_license:
+            package_data.license_expression = models.compute_normalized_license(package_data.declared_license)
+
+        yield package_data
+
 
 class GemspecInExtractedGemHandler(GemspecHandler):
     datasource_id = 'gemspec_extracted'
@@ -300,6 +316,25 @@ class GemfileLockInExtractedGemHandler(GemfileLockHandler):
     @classmethod
     def assemble(cls, package_data, resource, codebase, package_adder):
         yield from assemble_extracted_gem(cls, package_data, resource, codebase, package_adder)
+
+
+def compute_normalized_license(declared_license):
+    """
+    Return a normalized license expression string detected from a list of
+    declared license items.
+    """
+    if not declared_license:
+        return
+
+    detected_licenses = []
+
+    for declared in declared_license:
+        detected_license = models.compute_normalized_license(declared)
+        if detected_license:
+            detected_licenses.append(detected_license)
+
+    if detected_licenses:
+        return combine_expressions(detected_licenses)
 
 
 def get_urls(name, version=None, platform=None):
@@ -449,7 +484,7 @@ def build_rubygem_package_data(gem_data, datasource_id):
     # See https://guides.rubygems.org/specification-reference/#licenseo
     lic = gem_data.get('license')
     licenses = gem_data.get('licenses')
-    extracted_license_statement = licenses_mapper(lic, licenses)
+    declared_license = licenses_mapper(lic, licenses)
 
     # we may have tow homepages and one may be wrong.
     # we prefer the one from the metadata
@@ -470,7 +505,7 @@ def build_rubygem_package_data(gem_data, datasource_id):
         qualifiers=qualifiers,
         description=description,
         homepage_url=homepage_url,
-        extracted_license_statement=extracted_license_statement,
+        declared_license=declared_license,
         bug_tracking_url=metadata.get('bug_tracking_uri'),
         code_view_url=metadata.get('source_code_uri'),
         file_references=file_references,
@@ -507,6 +542,9 @@ def build_rubygem_package_data(gem_data, datasource_id):
 
     if not package_data.homepage_url:
         package_data.homepage_url = rubygems_homepage_url(name, version)
+
+    if not package_data.license_expression and package_data.declared_license:
+        package_data.license_expression = models.compute_normalized_license(package_data.declared_license)
 
     return package_data
 

@@ -24,20 +24,21 @@ from typing import NamedTuple
 import dparse2
 # NOTE: we always want to use the external library rather than the built-in for now
 import importlib_metadata
-import packaging
+import packvers as packaging
 import pip_requirements_parser
 import pkginfo2
 from commoncode import fileutils
 from commoncode.fileutils import as_posixpath
 from commoncode.resource import Resource
-from packaging.specifiers import SpecifierSet
 from packageurl import PackageURL
-from packaging import markers
-from packaging.requirements import Requirement
-from packaging.utils import canonicalize_name
+from packvers.specifiers import SpecifierSet
+from packvers import markers
+from packvers.requirements import Requirement
+from packvers.utils import canonicalize_name
 
 from packagedcode import models
 from packagedcode.utils import build_description
+from packagedcode.utils import combine_expressions
 from packagedcode.utils import yield_dependencies_from_package_data
 from packagedcode.utils import yield_dependencies_from_package_resource
 
@@ -53,7 +54,7 @@ Detect and collect Python packages information.
 # TODO: add support for pex, pyz, etc.
 # TODO: Add missing ABOUT file for Pyserial code
 
-TRACE = os.environ.get('SCANCODE_DEBUG_PACKAGE', False)
+TRACE = False
 
 
 def logger_debug(*args):
@@ -63,15 +64,21 @@ def logger_debug(*args):
 logger = logging.getLogger(__name__)
 
 if TRACE:
-    import sys
     logging.basicConfig(stream=sys.stdout)
     logger.setLevel(logging.DEBUG)
 
     def logger_debug(*args):
-        return logger.debug(' '.join(isinstance(a, str) and a or repr(a) for a in args))
+        return print(' '.join(isinstance(a, str) and a or repr(a) for a in args))
 
 
-class PythonEggPkgInfoFile(models.DatafileHandler):
+class BasePypiHandler(models.DatafileHandler):
+
+    @classmethod
+    def compute_normalized_license(cls, package):
+        return compute_normalized_license(package.declared_license)
+
+
+class PythonEggPkgInfoFile(BasePypiHandler):
     datasource_id = 'pypi_egg_pkginfo'
     default_package_type = 'pypi'
     default_primary_language = 'Python'
@@ -95,7 +102,7 @@ class PythonEggPkgInfoFile(models.DatafileHandler):
             return models.DatafileHandler.assign_package_to_resources(package, root, codebase, package_adder)
 
 
-class PythonEditableInstallationPkgInfoFile(models.DatafileHandler):
+class PythonEditableInstallationPkgInfoFile(BasePypiHandler):
     datasource_id = 'pypi_editable_egg_pkginfo'
     default_package_type = 'pypi'
     default_primary_language = 'Python'
@@ -122,7 +129,8 @@ def create_package_from_package_data(package_data, datafile_path):
         package_data=package_data,
         datafile_path=datafile_path,
     )
-    package.populate_license_fields()
+    if not package.license_expression:
+        package.license_expression = compute_normalized_license(package.declared_license)
     return package
 
 
@@ -136,7 +144,7 @@ def is_egg_info_directory(resource):
     )
 
 
-class BaseExtractedPythonLayout(models.DatafileHandler):
+class BaseExtractedPythonLayout(BasePypiHandler):
     """
     Base class for development repos, sdist tarballs and other related extracted
     layourt for Python packages that can use and mix multiple datafiles.
@@ -246,7 +254,8 @@ class BaseExtractedPythonLayout(models.DatafileHandler):
                         )
 
         if package:
-            package.populate_license_fields()
+            if not package.license_expression:
+                package.license_expression = compute_normalized_license(package.declared_license)
             package_uid = package.package_uid
 
             package_resource_parent = package_resource.parent(codebase)
@@ -329,7 +338,7 @@ class PythonSdistPkgInfoFile(BaseExtractedPythonLayout):
         )
 
 
-class PythonInstalledWheelMetadataFile(models.DatafileHandler):
+class PythonInstalledWheelMetadataFile(BasePypiHandler):
     datasource_id = 'pypi_wheel_metadata'
     path_patterns = ('*.dist-info/METADATA',)
     default_package_type = 'pypi'
@@ -488,14 +497,15 @@ def parse_metadata(location, datasource_id, package_type):
 
     file_references = list(get_file_references(dist))
 
-    return models.PackageData(
+    package_data = models.PackageData(
         datasource_id=datasource_id,
         type=package_type,
         primary_language='Python',
         name=name,
         version=version,
-        extracted_license_statement=get_declared_license(meta),
         description=get_description(metainfo=meta, location=str(location)),
+        # TODO: https://github.com/nexB/scancode-toolkit/issues/3014
+        declared_license=get_declared_license(meta),
         keywords=get_keywords(meta),
         parties=get_parties(meta),
         dependencies=dependencies,
@@ -503,6 +513,11 @@ def parse_metadata(location, datasource_id, package_type):
         extra_data=extra_data,
         **urls,
     )
+
+    if not package_data.license_expression and package_data.declared_license:
+        package_data.license_expression = models.compute_normalized_license(package_data.declared_license)
+
+    return package_data
 
 
 def urlsafe_b64decode(data):
@@ -542,7 +557,7 @@ def get_file_references(dist):
         yield ref
 
 
-class PypiWheelHandler(models.DatafileHandler):
+class PypiWheelHandler(BasePypiHandler):
     datasource_id = 'pypi_wheel'
     path_patterns = ('*.whl',)
     filetypes = ('zip archive',)
@@ -568,7 +583,7 @@ class PypiWheelHandler(models.DatafileHandler):
                     )
 
 
-class PypiEggHandler(models.DatafileHandler):
+class PypiEggHandler(BasePypiHandler):
     datasource_id = 'pypi_egg'
     path_patterns = ('*.egg',)
     filetypes = ('zip archive',)
@@ -595,7 +610,7 @@ class PypiEggHandler(models.DatafileHandler):
                     )
 
 
-class PypiSdistArchiveHandler(models.DatafileHandler):
+class PypiSdistArchiveHandler(BasePypiHandler):
     datasource_id = 'pypi_sdist'
     path_patterns = ('*.tar.gz', '*.tar.bz2', '*.zip',)
     default_package_type = 'pypi'
@@ -630,7 +645,7 @@ class PypiSdistArchiveHandler(models.DatafileHandler):
             name=name,
             version=version,
             description=get_description(sdist, location=location),
-            extracted_license_statement=get_declared_license(sdist),
+            declared_license=get_declared_license(sdist),
             keywords=get_keywords(sdist),
             parties=get_parties(sdist),
             extra_data=extra_data,
@@ -673,8 +688,8 @@ class PythonSetupPyHandler(BaseExtractedPythonLayout):
             version=version,
             description=get_description(setup_args),
             parties=get_setup_parties(setup_args),
-            extracted_license_statement=get_declared_license(setup_args),
-            dependencies=get_setup_py_dependencies(setup_args),
+            declared_license=get_declared_license(setup_args),
+            dependencies=dependencies,
             keywords=get_keywords(setup_args),
             extra_data=extra_data,
             **urls,
@@ -689,7 +704,7 @@ class ResolvedPurl(NamedTuple):
     is_resolved: bool
 
 
-class BaseDependencyFileHandler(models.DatafileHandler):
+class BaseDependencyFileHandler(BasePypiHandler):
     """
     Base class for a dependency files parsed with the same library
     """
@@ -1139,10 +1154,6 @@ def get_declared_license(metainfo):
     license_classifiers, _ = get_classifiers(metainfo)
     if license_classifiers:
         declared_license['classifiers'] = license_classifiers
-    
-    if not declared_license:
-        declared_license = None
-
     return declared_license
 
 
@@ -1598,7 +1609,7 @@ def get_setup_py_args(location, include_not_parsable=False):
     return parse_setup_py(location)
 
 
-def get_pypi_urls(name, version, **kwargs):
+def get_pypi_urls(name, version):
     """
     Return a mapping of computed Pypi URLs for this package
     """
@@ -2005,6 +2016,44 @@ def compute_path_depth(base, path):
             'base:', base, 'path:', path, 'subpath:', subpath,
             'segments:', segments, 'depth:', depth,)
     return depth
+
+
+def compute_normalized_license(declared_license):
+    """
+    Return a normalized license expression string detected from a mapping or
+    list of declared license items.
+    """
+    if not declared_license:
+        return
+
+    if isinstance(declared_license, dict):
+        values = list(declared_license.values())
+    elif isinstance(declared_license, list):
+        values = list(declared_license)
+    elif isinstance(declared_license, str):
+        values = [declared_license]
+    else:
+        return
+
+    detected_licenses = []
+
+    for value in values:
+        if not value:
+            continue
+        # The value could be a string or a list
+        if isinstance(value, str):
+            detected_license = models.compute_normalized_license(value)
+            if detected_license:
+                detected_licenses.append(detected_license)
+        else:
+            # this is a list
+            for declared in value:
+                detected_license = models.compute_normalized_license(declared)
+                if detected_license:
+                    detected_licenses.append(detected_license)
+
+    if detected_licenses:
+        return combine_expressions(detected_licenses)
 
 
 def get_requirement_from_section(section, sub_section):

@@ -1,8 +1,3 @@
----
-license_expression: inner-net-2.0
-is_license_text: yes
----
-
     /* The Inner Net License, Version 2.00
     
       The author(s) grant permission for redistribution and use in source and
@@ -37,3 +32,4 @@ is_license_text: yes
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     
       If these license terms cause you a real problem, contact the author.  */
+

@@ -29,7 +29,6 @@ from commoncode.cliutils import PluggableCommandLineOption
 from commoncode.cliutils import OUTPUT_GROUP
 from plugincode.output import output_impl
 from plugincode.output import OutputPlugin
-from licensedcode.detection import get_matches_from_detection_mappings
 
 """
 Output plugins to write scan results using templates such as HTML.
@@ -147,7 +146,6 @@ def generate_output(results, version, template):
     # support adding new scans at all
 
     from licensedcode.cache import get_licenses_db
-    licenses_db = get_licenses_db()
 
     converted = {}
     converted_infos = {}
@@ -172,22 +170,22 @@ def generate_output(results, version, template):
                     'value': entry['copyright'],
                 })
         if LICENSES in scanned_file:
-            for match in get_matches_from_detection_mappings(scanned_file[LICENSES]):
+            for entry in scanned_file[LICENSES]:
                 # make copy
-                match = dict(match)
-                license_expression = match['license_expression']
+                entry = dict(entry)
+                entry_key = entry['key']
                 results.append({
-                    'start': match['start_line'],
-                    'end': match['end_line'],
+                    'start': entry['start_line'],
+                    'end': entry['end_line'],
                     'what': 'license',
-                    'value': license_expression,
+                    'value': entry_key,
                 })
 
                 # FIXME: we should NOT rely on license objects: only use what is in the JSON instead
-                if license_expression not in licenses:
-                    licenses[license_expression] = match
+                if entry_key not in licenses:
+                    licenses[entry_key] = entry
                     # we were modifying the scan data in place ....
-                    match['object'] = licenses_db.get(license_expression)
+                    entry['object'] = get_licenses_db().get(entry_key)
         if results:
             converted[path] = sorted(results, key=itemgetter('start'))
 

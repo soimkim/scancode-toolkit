@@ -88,7 +88,10 @@ class CranDescriptionFileHandler(models.DatafileHandler):
                 )
             )
 
-        extracted_license_statement=cran_desc.get('License')
+        declared_license=cran_desc.get('License')
+        license_expression = None
+        if declared_license:
+            license_expression = models.compute_normalized_license(declared_license)
 
         # TODO: Let's handle the release date as a Date type
         # release_date = cran_desc.get('Date/Publication'),
@@ -100,7 +103,8 @@ class CranDescriptionFileHandler(models.DatafileHandler):
             version=cran_desc.get('Version'),
             # TODO: combine both together
             description=cran_desc.get('Description', '') or cran_desc.get('Title', ''),
-            extracted_license_statement=extracted_license_statement,
+            declared_license=declared_license,
+            license_expression=license_expression,
             parties=parties,
             dependencies=package_dependencies,
             repository_homepage_url=f'https://cran.r-project.org/package={name}',

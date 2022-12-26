@@ -1,8 +1,3 @@
----
-license_expression: commercial-license
-is_license_text: yes
----
-
 // This file is distributed as part of the  source code package   
 // and may not be redistributed in any form, without prior written    
 // permission from the author. Permission is granted for you to       
@@ -11,4 +6,4 @@ is_license_text: yes
 // 
 // Permission is granted for you to use this file to compile .    
 // 
-// All computer programs have bugs. Use this file at your own risk.
+// All computer programs have bugs. Use this file at your own risk.   

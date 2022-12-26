@@ -30,10 +30,6 @@ available in the command line.
 
 ----
 
-.. include::  /rst_snippets/scancode-reindex-licenses.rst
-
-----
-
 .. include::  /rst_snippets/core_options.rst
 
 ----

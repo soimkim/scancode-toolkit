@@ -13,6 +13,7 @@ import json
 from packageurl import PackageURL
 
 from packagedcode import models
+from packagedcode.utils import combine_expressions
 
 
 # TODO: handle complex cases of npms and bower combined
@@ -25,6 +26,10 @@ class BowerJsonHandler(models.DatafileHandler):
     documentation_url = 'https://bower.io'
 
     @classmethod
+    def compute_normalized_license(cls, package):
+        return compute_bower_normalized_license(package.declared_license)
+
+    @classmethod
     def parse(cls, location):
         with io.open(location, encoding='utf-8') as loc:
             package_data = json.load(loc)
@@ -34,7 +39,15 @@ class BowerJsonHandler(models.DatafileHandler):
 
         description = package_data.get('description')
         version = package_data.get('version')
-        extracted_license_statement = package_data.get('license')
+        declared_license = package_data.get('license')
+        if declared_license:
+            if isinstance(declared_license, str):
+                declared_license = [declared_license]
+            elif isinstance(declared_license, (list, tuple)):
+                declared_license = [l for l in declared_license if l and l.strip()]
+            else:
+                declared_license = [repr(declared_license)]
+
         keywords = package_data.get('keywords') or []
 
         parties = []
@@ -93,10 +106,31 @@ class BowerJsonHandler(models.DatafileHandler):
             name=name,
             description=description,
             version=version,
-            extracted_license_statement=extracted_license_statement,
+            declared_license=declared_license,
             keywords=keywords,
             parties=parties,
             homepage_url=homepage_url,
             vcs_url=vcs_url,
             dependencies=dependencies
         )
+
+
+def compute_bower_normalized_license(declared_license):
+    """
+    Return a normalized license expression string detected from a list of
+    declared license strings.
+    """
+    if not declared_license:
+        return
+
+    detected_licenses = []
+
+    for declared in declared_license:
+        detected_license = models.compute_normalized_license(declared)
+        if detected_license:
+            detected_licenses.append(detected_license)
+        else:
+            detected_licenses.append('unknown')
+
+    if detected_licenses:
+        return combine_expressions(detected_licenses)

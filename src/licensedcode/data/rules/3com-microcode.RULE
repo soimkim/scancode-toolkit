@@ -1,9 +1,3 @@
----
-license_expression: 3com-microcode
-is_license_text: yes
-minimum_coverage: 80
----
-
  Licence:
  /*
   *
@@ -38,3 +32,4 @@ minimum_coverage: 80
   */
  
  Found in hex form in kernel source.
+ 

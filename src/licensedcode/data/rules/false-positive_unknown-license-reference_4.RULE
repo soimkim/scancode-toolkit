@@ -1,6 +1,1 @@
----
-is_false_positive: yes
-notes: Seen in libmagic
----
-
 mime    text/x-gimp-gpl

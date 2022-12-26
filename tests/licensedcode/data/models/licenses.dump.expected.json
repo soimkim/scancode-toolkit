@@ -6,7 +6,6 @@
     "category": "Permissive",
     "owner": "Apache Software Foundation",
     "homepage_url": "http://www.apache.org/licenses/",
-    "is_builtin": true,
     "spdx_license_key": "Apache-2.0",
     "text_urls": [
       "http://www.apache.org/licenses/LICENSE-2.0"
@@ -21,7 +20,6 @@
     "category": "Permissive",
     "owner": "Carrot2",
     "homepage_url": "http://www.carrot2.org/carrot2.LICENSE",
-    "is_builtin": true,
     "spdx_license_key": "LicenseRef-scancode-bsd-ack-carrot2",
     "minimum_coverage": 80
   },
@@ -32,7 +30,6 @@
     "category": "Copyleft",
     "owner": "Free Software Foundation (FSF)",
     "homepage_url": "http://www.gnu.org/licenses/gpl-1.0.html",
-    "is_builtin": true,
     "notes": "notes from SPDX:\nThis license was released: February 1989.\n",
     "spdx_license_key": "GPL-1.0",
     "text_urls": [
@@ -50,7 +47,6 @@
     "category": "Copyleft",
     "owner": "Free Software Foundation (FSF)",
     "homepage_url": "http://www.gnu.org/licenses/old-licenses/gpl-1.0-standalone.html",
-    "is_builtin": true,
     "notes": "notes from SPDX:\nThis license was released: February 1989.\n",
     "spdx_license_key": "GPL-1.0+"
   },
@@ -61,7 +57,6 @@
     "category": "Copyleft",
     "owner": "Free Software Foundation (FSF)",
     "homepage_url": "http://www.gnu.org/licenses/gpl-2.0.html",
-    "is_builtin": true,
     "notes": "This is the last version of the GPL text as published by the FSF. This license was released: June 1991 This license is OSI certified.\n",
     "spdx_license_key": "GPL-2.0",
     "text_urls": [
@@ -82,7 +77,6 @@
     "short_name": "GPL 2.0 with Library exception",
     "name": "GNU General Public License 2.0 with Library exception",
     "category": "Copyleft Limited",
-    "is_builtin": true,
     "owner": "Grammatica",
     "is_exception": true,
     "spdx_license_key": "LicenseRef-scancode-gpl-2.0-library",
@@ -97,7 +91,6 @@
     "category": "Copyleft",
     "owner": "Free Software Foundation (FSF)",
     "homepage_url": "http://www.gnu.org/licenses/old-licenses/gpl-2.0-standalone.html",
-    "is_builtin": true,
     "notes": "notes from SPDX:\nThis license was released: June 1991 This license is OSI certified.\n",
     "spdx_license_key": "GPL-2.0+"
   },
@@ -108,7 +101,6 @@
     "category": "Copyleft",
     "owner": "Free Software Foundation (FSF)",
     "homepage_url": "http://www.gnu.org/licenses/gpl-3.0.html",
-    "is_builtin": true,
     "notes": "notes from SPDX:\nThis license was released: 29 June 2007 This license is OSI certified.\n",
     "spdx_license_key": "GPL-3.0",
     "text_urls": [
@@ -128,7 +120,6 @@
     "category": "Copyleft",
     "owner": "Free Software Foundation (FSF)",
     "homepage_url": "http://www.gnu.org/licenses/gpl-3.0-standalone.html",
-    "is_builtin": true,
     "notes": "notes from SPDX:\nThis license was released: 29 June 2007 This license is OSI certified.\n",
     "spdx_license_key": "GPL-3.0+"
   },
@@ -139,7 +130,6 @@
     "category": "Free Restricted",
     "owner": "W3C - World Wide Web Consortium",
     "homepage_url": "http://www.w3.org/Consortium/Legal/copyright-documents-19990405",
-    "is_builtin": true,
     "spdx_license_key": "LicenseRef-scancode-w3c-docs-19990405"
   }
 ]

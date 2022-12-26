@@ -82,23 +82,31 @@ class CondaMetaYamlHandler(models.DatafileHandler):
     def parse(cls, location):
         metayaml = get_meta_yaml_data(location)
         package_element = metayaml.get('package') or {}
-        package_name = package_element.get('name')
-        if not package_name:
+        name = package_element.get('name')
+        if not name:
             return
         version = package_element.get('version')
 
+        package = models.PackageData(
+            datasource_id=cls.datasource_id,
+            type=cls.default_package_type,
+            name=name,
+            version=version,
+        )
+
         # FIXME: source is source, not download
         source = metayaml.get('source') or {}
-        download_url = source.get('url')
-        sha256 = source.get('sha256')
+        package.download_url = source.get('url')
+        package.sha256 = source.get('sha256')
 
         about = metayaml.get('about') or {}
-        homepage_url = about.get('home')
-        extracted_license_statement = about.get('license')
-        description = about.get('summary')
-        vcs_url = about.get('dev_url')
+        package.homepage_url = about.get('home')
+        package.declared_license = about.get('license')
+        if package.declared_license:
+            package.license_expression = cls.compute_normalized_license(package)
+        package.description = about.get('summary')
+        package.vcs_url = about.get('dev_url')
 
-        dependencies = []
         requirements = metayaml.get('requirements') or {}
         for scope, reqs in requirements.items():
             # requirements format is like:
@@ -108,7 +116,7 @@ class CondaMetaYamlHandler(models.DatafileHandler):
             for req in reqs:
                 name, _, requirement = req.partition(" ")
                 purl = PackageURL(type=cls.default_package_type, name=name)
-                dependencies.append(
+                package.dependencies.append(
                     models.DependentPackage(
                         purl=purl.to_string(),
                         extracted_requirement=requirement,
@@ -118,19 +126,7 @@ class CondaMetaYamlHandler(models.DatafileHandler):
                     )
                 )
 
-        yield models.PackageData(
-            datasource_id=cls.datasource_id,
-            type=cls.default_package_type,
-            name=package_name,
-            version=version,
-            download_url=download_url,
-            homepage_url=homepage_url,
-            vcs_url=vcs_url,
-            description=description,
-            sha256=sha256,
-            extracted_license_statement=extracted_license_statement,
-            dependencies=dependencies,
-        )
+        yield package
 
 
 def get_meta_yaml_data(location):

@@ -1,6 +1,1 @@
----
-is_false_positive: yes
-notes: Seen in openzfs
----
-
 incompatible with the CDDL license and will

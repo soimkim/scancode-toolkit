@@ -47,7 +47,7 @@ class Tallies(PostScanPlugin):
     """
     Compute tallies for license, copyright and other scans at the codebase level
     """
-    sort_order = 15
+    sort_order = 10
 
     codebase_attributes = dict(tallies=attr.ib(default=attr.Factory(dict)))
 
@@ -74,7 +74,7 @@ class TalliesWithDetails(PostScanPlugin):
     keep file and directory details.
 
     The scan attributes that are tallied are:
-    - detected_license_expression
+    - license_expressions
     - copyrights
     - holders
     - authors
@@ -116,7 +116,7 @@ def compute_codebase_tallies(codebase, keep_details, **kwargs):
                                                holder_tallies)
 
     attrib_summarizers = [
-        ('detected_license_expression', license_tallies),
+        ('license_expressions', license_tallies),
         ('copyrights', copyright_tallies),
         ('holders', holder_tallies),
         ('authors', author_tallies),
@@ -156,16 +156,16 @@ def license_tallies(resource, children, keep_details=False):
         {value: "expression", count: "count of occurences"}
     sorted by decreasing count.
     """
-    LIC_EXP = 'detected_license_expression'
+    LIC_EXP = 'license_expressions'
     license_expressions = []
 
     # Collect current data
-    lic_expression = getattr(resource, LIC_EXP, None)
-    if not lic_expression and resource.is_file:
+    lic_expressions = getattr(resource, LIC_EXP  , [])
+    if not lic_expressions and resource.is_file:
         # also count files with no detection
         license_expressions.append(None)
     else:
-        license_expressions.append(lic_expression)
+        license_expressions.extend(lic_expressions)
 
     # Collect direct children expression tallies
     for child in children:
@@ -236,7 +236,7 @@ def tally_languages(languages):
 
 
 TALLYABLE_ATTRS = set([
-    'detected_license_expression',
+    'license_expressions',
     'copyrights',
     'holders',
     'authors',
@@ -255,7 +255,7 @@ def tally_values(values, attribute):
     from summarycode.copyright_tallies import tally_copyrights, tally_persons
 
     value_talliers_by_attr = dict(
-        detected_license_expression=tally_licenses,
+        license_expressions=tally_licenses,
         copyrights=tally_copyrights,
         holders=tally_persons,
         authors=tally_persons,

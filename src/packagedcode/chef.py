@@ -55,7 +55,7 @@ def chef_api_url(name, version):
     return name and version and f'https://supermarket.chef.io/api/v1/cookbooks/{name}/versions/{version}'
 
 
-def get_urls(name, version, **kwargs):
+def get_urls(name, version):
     """
     Return a mapping of URLs given a name and version.
     """
@@ -190,7 +190,7 @@ class ChefMetadataJsonHandler(BaseChefMetadataHandler):
         """
         with io.open(location, encoding='utf-8') as loc:
             package_data = json.load(loc)
-        yield build_package(package_data, datasource_id=cls.datasource_id)
+        return build_package(package_data, datasource_id=cls.datasource_id)
 
 
 class ChefMetadataRbHandler(BaseChefMetadataHandler):
@@ -213,7 +213,7 @@ class ChefMetadataRbHandler(BaseChefMetadataHandler):
             ChefMetadataFormatter()
         )
         package_data = json.loads(formatted_file_contents)
-        yield build_package(package_data, datasource_id=cls.datasource_id)
+        return build_package(package_data, datasource_id=cls.datasource_id)
 
 
 def build_package(package_data, datasource_id):
@@ -239,10 +239,12 @@ def build_package(package_data, datasource_id):
     # TODO: combine descriptions as done elsewhere
     description = package_data.get('description', '') or package_data.get('long_description', '')
     lic = package_data.get('license', '')
-    extracted_license_statement = None
+    declared_license = None
+    license_expression = None
     if lic:
-        extracted_license_statement=lic.strip()
-
+        declared_license=lic.strip()
+        if declared_license:
+            license_expression = models.compute_normalized_license(declared_license)
     code_view_url = package_data.get('source_url', '')
     bug_tracking_url = package_data.get('issues_url', '')
 
@@ -261,14 +263,15 @@ def build_package(package_data, datasource_id):
             )
         )
 
-    return models.PackageData(
+    yield models.PackageData(
         datasource_id=datasource_id,
         type=ChefMetadataJsonHandler.default_package_type,
         name=name,
         version=version,
         parties=parties,
         description=description.strip() or None,
-        extracted_license_statement=extracted_license_statement,
+        declared_license=declared_license,
+        license_expression=license_expression,
         code_view_url=code_view_url.strip() or None,
         bug_tracking_url=bug_tracking_url.strip() or None,
         dependencies=dependencies,

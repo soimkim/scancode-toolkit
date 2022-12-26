@@ -23,17 +23,16 @@ from licensedcode.spans import Span
 
 """
 Matching strategy for license expressions and "SPDX-License-Identifier:"
-expression tags. This is also for spdx license-expressions with other
-prefix strings (example: NuGet License URLs).
+expression tags.
 The matching aproach is a tad different:
 
-First, we do not run this matcher against whole queries. Instead the matchable
+First, we do not run this matcher against whoel queries. Instead the matchable
 text is collected during the query processing as Query.spdx_lines for any line
 that starts withs these tokens ['spdx', 'license', 'identifier'] or ['spdx',
 'licence', 'identifier'] begining with the first, second or third token position
 in a line.
 
-Then the words after "SPDX-license-identifier" are parsed as if they were an
+Then the words after "SPDX-license-identifier" are parsed as if theyr were an
 SPDX license expression (with a few extra symbols and/or deprecated symbols
 added to the list of license keys.
 """
@@ -375,11 +374,6 @@ _split_spdx_lid = re.compile(
     re.IGNORECASE).split
 
 
-_nuget_split_spdx_lid = re.compile(
-    '(licenses(?:\\.|\\s)+nuget(?:\\.|\\s)+org\\s*:?\\s*)',
-    re.IGNORECASE).split
-
-
 def split_spdx_lid(text):
     """
     Split text if it contains an "SPDX license identifier". Return a 2-tuple if
@@ -394,10 +388,5 @@ def split_spdx_lid(text):
     if len(segments) > 1:
         return segments[-2], expression
     else:
-        segments = _nuget_split_spdx_lid(text)
-        expression = segments[-1]
-        if len(segments) > 1:
-            return segments[-2], expression
-        else:
-            return None, text
+        return None, text
 

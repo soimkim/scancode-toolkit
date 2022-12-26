@@ -1,8 +1,3 @@
----
-license_expression: x11-adobe-dec
-is_license_notice: yes
----
-
 Adobe Systems 
 Digital Equipment Corporation
 
@@ -22,3 +17,4 @@ without specific, written prior permission.  Adobe Systems and
 Digital Equipment Corporation make no representations about the
 suitability of this software for any purpose.  It is provided "as
 is" without express or implied warranty.
+

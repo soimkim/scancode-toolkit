@@ -28,8 +28,8 @@ import saneyaml
 from commoncode import fileutils
 from commoncode.hash import multi_checksums
 from commoncode.text import python_safe_name
-from packaging import tags as packaging_tags
-from packaging import version as packaging_version
+from packvers import tags as packaging_tags
+from packvers import version as packaging_version
 
 import utils_pip_compatibility_tags
 
@@ -910,7 +910,7 @@ class Distribution(NameVer):
         declared_license = [raw_data["License"]] + [
             c for c in classifiers if c.startswith("License")
         ]
-        license_expression = get_license_expression(declared_license)
+        license_expression = compute_normalized_license_expression(declared_license)
         other_classifiers = [c for c in classifiers if not c.startswith("License")]
 
         holder = raw_data["Author"]
@@ -2272,16 +2272,16 @@ def find_problems(
     check_about(dest_dir=dest_dir)
 
 
-def get_license_expression(declared_licenses):
+def compute_normalized_license_expression(declared_licenses):
     """
     Return a normalized license expression or None.
     """
     if not declared_licenses:
         return
     try:
-        from packagedcode.licensing import get_only_expression_from_extracted_license
+        from packagedcode import pypi
 
-        return get_only_expression_from_extracted_license(declared_licenses)
+        return pypi.compute_normalized_license(declared_licenses)
     except ImportError:
         # Scancode is not installed, clean and join all the licenses
         lics = [python_safe_name(l).lower() for l in declared_licenses]

@@ -45,7 +45,26 @@ class HaxelibJsonHandler(models.DatafileHandler):
     documentation_url = 'https://lib.haxe.org/documentation/creating-a-haxelib-package/'
 
     @classmethod
-    def _parse(cls, json_data):
+    def parse(cls, location):
+        """
+        Yield one or more Package manifest objects given a file ``location`` pointing to a
+        package_data archive, manifest or similar.
+
+        {
+            "name": "haxelib",
+            "url" : "https://lib.haxe.org/documentation/",
+            "license": "GPL",
+            "tags": ["haxelib", "core"],
+            "description": "The haxelib client",
+            "classPath": "src",
+            "version": "3.4.0",
+            "releasenote": " * Fix password input issue in Windows (#421).\n * ....",
+            "contributors": ["back2dos", "ncannasse", "jason", "Simn", "nadako", "andyli"]
+        }
+        """
+        with io.open(location, encoding='utf-8') as loc:
+            json_data = json.load(loc)
+
         name = json_data.get('name')
         version = json_data.get('version')
 
@@ -55,11 +74,14 @@ class HaxelibJsonHandler(models.DatafileHandler):
             name=name,
             version=version,
             homepage_url=json_data.get('url'),
-            extracted_license_statement=json_data.get('license'),
+            declared_license=json_data.get('license'),
             keywords=json_data.get('tags'),
             description=json_data.get('description'),
             primary_language=cls.default_primary_language,
         )
+
+        if not package_data.license_expression and package_data.declared_license:
+            package_data.license_expression = cls.compute_normalized_license(package_data)
 
         if name and version:
             download_url = f'https://lib.haxe.org/p/{name}/{version}/download/'
@@ -88,27 +110,4 @@ class HaxelibJsonHandler(models.DatafileHandler):
             dep = models.DependentPackage(purl=dep_purl, is_resolved=is_resolved,)
             package_data.dependencies.append(dep)
 
-        return package_data
-
-    @classmethod
-    def parse(cls, location):
-        """
-        Yield one or more Package manifest objects given a file ``location`` pointing to a
-        package_data archive, manifest or similar.
-
-        {
-            "name": "haxelib",
-            "url" : "https://lib.haxe.org/documentation/",
-            "license": "GPL",
-            "tags": ["haxelib", "core"],
-            "description": "The haxelib client",
-            "classPath": "src",
-            "version": "3.4.0",
-            "releasenote": " * Fix password input issue in Windows (#421).\n * ....",
-            "contributors": ["back2dos", "ncannasse", "jason", "Simn", "nadako", "andyli"]
-        }
-        """
-        with io.open(location, encoding='utf-8') as loc:
-            json_data = json.load(loc)
-
-        yield cls._parse(json_data)
+        yield package_data

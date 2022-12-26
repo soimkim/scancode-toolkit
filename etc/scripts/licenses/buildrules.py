@@ -79,7 +79,7 @@ def load_data(location="00-new-licenses.txt"):
     Load rules metadata  and text from file at ``location``. Return a list of
     RuleData.
     """
-    with open(location) as o:
+    with io.open(location, encoding="utf-8") as o:
         lines = o.read().splitlines(False)
 
     rules = []
@@ -262,7 +262,7 @@ def cli(licenses_file):
             print(existing_msg.format(**locals()))
             continue
         else:
-            print(f"Adding new rule: file://{identifier}")
+            print(f"Adding new rule: {identifier}")
             rl = models.update_ignorables(rulerec, verbose=False)
             rl.dump(rules_data_dir=models.rules_data_dir)
 
