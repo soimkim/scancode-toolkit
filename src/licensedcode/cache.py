@@ -78,6 +78,16 @@ class LicenseCache:
 
         has_cache = os.path.exists(cache_file) and os.path.getsize(cache_file)
 
+        # bypass build if cache exists
+        if has_cache and not force:
+            try:
+                return load_cache_file(cache_file)
+            except Exception as e:
+                # work around some rare Windows quirks
+                import traceback
+                print('Inconsistent License cache: rebuilding index.')
+                print(str(e))
+                print(traceback.format_exc())
 
         from licensedcode.models import licenses_data_dir as ldd
         from licensedcode.models import rules_data_dir as rdd
